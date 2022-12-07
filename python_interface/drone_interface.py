@@ -71,7 +71,7 @@ class DroneInterface(Node):
     modules = {}
 
     def __init__(self, drone_id: str = "drone0", verbose: bool = False,
-                 use_gps: bool = False, use_sim_time: bool = False) -> None:
+                 use_sim_time: bool = False) -> None:
         """Constructor method
 
         :param drone_id: drone namespace, defaults to "drone0"
@@ -158,10 +158,10 @@ class DroneInterface(Node):
 
         :rtype: Dict[str, Union[bool, str]]
         """
-        info = self.__get_info()
-        return {"connected": bool(info[0]), "armed": bool(info[1]), "offboard": bool(info[2]),
-                "state": STATE[info[3]], "yaw_mode": YAW_MODE[info[4]],
-                "control_mode": CONTROL_MODE[info[5]], "reference_frame": REFERENCE_FRAME[info[6]]}
+        info = self.__info.data
+        return {"connected": info[0], "armed": info[1], "offboard": info[2],
+                "state": info[3], "yaw_mode": info[4],
+                "control_mode": info[5], "reference_frame": info[6]}
 
     @property
     def position(self) -> List[float]:
@@ -201,9 +201,6 @@ class DroneInterface(Node):
         self.__info.data = [msg.connected, msg.armed, msg.offboard, msg.status.state,
                             msg.current_control_mode.yaw_mode, msg.current_control_mode.control_mode,
                             msg.current_control_mode.reference_frame]
-
-    def __get_info(self) -> List[int]:
-        return self.__info.data
 
     def __pose_callback(self, pose_msg: PoseStamped) -> None:
         """pose stamped callback"""
