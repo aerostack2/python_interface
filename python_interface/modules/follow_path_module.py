@@ -19,14 +19,26 @@ class FollowPathModule:
             path, speed, yaw_mode, is_gps)
         SendFollowPath(self, path_data)
 
-    def follow_path(self, path: Path, speed: float = 1.0,
+    def follow_path(self, path: Path, speed: float,
                     yaw_mode: int = TrajectoryWaypoints.KEEP_YAW) -> None:
-        """Drone follow path"""
+        """Follow path with speed (m/s) and yaw_mode.
+
+        :type path: Path
+        :type speed: float
+        :param yaw_mode: yaw_mode, defaults to TrajectoryWaypoints.KEEP_YAW
+        :type yaw_mode: int, optional
+        """
         self.__follow_path(path, speed, yaw_mode)
 
-    def follow_gps_path(self, wp_path: Path, speed: float = 1.0,
+    def follow_gps_path(self, wp_path: Path, speed: float,
                         yaw_mode: int = TrajectoryWaypoints.KEEP_YAW) -> None:
-        """Drone follow gps path"""
+        """Follow GPS path with speed (m/s) and yaw_mode.
+
+        :type path: Path
+        :type speed: float
+        :param yaw_mode: yaw_mode, defaults to TrajectoryWaypoints.KEEP_YAW
+        :type yaw_mode: int, optional
+        """
         self.__follow_path(wp_path, speed, yaw_mode, is_gps=True)
 
     # TODO

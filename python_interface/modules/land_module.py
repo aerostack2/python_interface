@@ -9,7 +9,10 @@ class LandModule:
         self.__drone.modules[self.__alias__] = self
 
     def __call__(self, speed: float = 0.5) -> None:
-        """Drone landing"""
+        """Land with given speed (m/s).
+
+        :type speed: float
+        """
         SendLand(self.__drone, float(speed))
 
     # TODO

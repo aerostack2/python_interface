@@ -9,7 +9,11 @@ class TakeoffModule:
         self.__drone.modules[self.__alias__] = self
 
     def __call__(self, height: float = 1.0, speed: float = 0.5) -> None:
-        """Drone takeoff"""
+        """Takeoff to given height (m) and given speed (m/s).
+
+        :type height: float
+        :type speed: float
+        """
         SendTakeoff(self.__drone, float(height), float(speed))
 
     # TODO
