@@ -48,13 +48,9 @@ from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data, qos_profile_system_default
 from rclpy.parameter import Parameter
 
-from sensor_msgs.msg import NavSatFix
 from std_srvs.srv import SetBool
-from as2_msgs.msg import TrajectoryWaypoints, PlatformInfo, AlertEvent
-from as2_msgs.srv import SetOrigin, GeopathToPath, PathToGeopath
-from geometry_msgs.msg import Pose, PoseStamped, TwistStamped
-from geographic_msgs.msg import GeoPose
-from nav_msgs.msg import Path
+from as2_msgs.msg import PlatformInfo, AlertEvent
+from geometry_msgs.msg import PoseStamped, TwistStamped
 
 from motion_reference_handlers.hover_motion import HoverMotion
 from motion_reference_handlers.position_motion import PositionMotion
@@ -64,12 +60,6 @@ from motion_reference_handlers.speed_in_a_plane import SpeedInAPlaneMotion
 from python_interface.shared_data.platform_info_data import PlatformInfoData
 from python_interface.shared_data.pose_data import PoseData
 from python_interface.shared_data.twist_data import TwistData
-from python_interface.shared_data.gps_data import GpsData
-
-from python_interface.behaviour_actions.gotowayp_behaviour import SendGoToWaypoint
-from python_interface.behaviour_actions.takeoff_behaviour import SendTakeoff
-from python_interface.behaviour_actions.followpath_behaviour import SendFollowPath
-from python_interface.behaviour_actions.land_behaviour import SendLand
 
 from python_interface.service_clients.arming import Arm, Disarm
 from python_interface.service_clients.offboard import Offboard
@@ -87,9 +77,10 @@ REFERENCE_FRAME = ["UNDEFINED_FRAME", "LOCAL_ENU_FRAME",
 
 class DroneInterface(Node):
     """Drone interface node"""
+    modules = {}
 
     def __init__(self, drone_id: str = "drone0", verbose: bool = False,
-                 use_gps: bool = False, use_sim_time: bool = False) -> None:
+                 use_sim_time: bool = False) -> None:
         super().__init__(f'{drone_id}_interface', namespace=drone_id)
 
         self.param_use_sim_time = Parameter(
@@ -110,16 +101,6 @@ class DroneInterface(Node):
         self.info_sub = self.create_subscription(
             PlatformInfo, 'platform/info', self.info_callback, qos_profile_system_default)
 
-        # TODO: Synchronious callbacks to pose and twist
-        # self.pose_sub = message_filters.Subscriber(self, PoseStamped,
-        #   'self_localization/pose', qos_profile_sensor_data.get_c_qos_profile())
-        # self.twist_sub = message_filters.Subscriber(self, TwistStamped,
-        #   'self_localization/twist', qos_profile_sensor_data.get_c_qos_profile())
-
-        # self._synchronizer = message_filters.ApproximateTimeSynchronizer(
-        #     (self.pose_sub, self.twist_sub), 5, 0.01, allow_headerless=True)
-        # self._synchronizer.registerCallback(self.pose_callback)
-
         # State subscriber
         self.pose_sub = self.create_subscription(
             PoseStamped, 'self_localization/pose', self.pose_callback, qos_profile_sensor_data)
@@ -127,28 +108,11 @@ class DroneInterface(Node):
         self.twist_sub = self.create_subscription(
             TwistStamped, 'self_localization/twist', self.twist_callback, qos_profile_sensor_data)
 
-        self.gps_sub = self.create_subscription(
-            NavSatFix, 'sensor_measurements/gps', self.gps_callback, qos_profile_sensor_data)
-
-        translator_namespace = self.namespace
-        self.global_to_local_cli_ = self.create_client(
-            GeopathToPath, f"{translator_namespace}/geopath_to_path")
-        self.local_to_global_cli_ = self.create_client(
-            PathToGeopath, f"{translator_namespace}/path_to_geopath")
-
         self.trajectory_gen_cli = self.create_client(
             SetBool, "traj_gen/run_node")
         if not self.trajectory_gen_cli.wait_for_service(timeout_sec=3):
             self.get_logger().warn("Trajectory generator service not found")
             self.trajectory_gen_cli = None
-
-        self.use_gps = use_gps
-        self.gps = GpsData()
-        if self.use_gps:
-            self.set_origin_cli_ = self.create_client(
-                SetOrigin, f"{translator_namespace}/set_origin")
-            if not self.set_origin_cli_.wait_for_service(timeout_sec=3):
-                self.get_logger().warn("Set Origin not ready")
 
         self.hover_motion_handler = HoverMotion(self)
         self.position_motion_handler = PositionMotion(self)
@@ -173,6 +137,14 @@ class DroneInterface(Node):
 
     def __del__(self) -> None:
         self.shutdown()
+
+    def load_module(self, pkg: str) -> None:
+        """load module on drone"""
+        import importlib
+        module = importlib.import_module(pkg)
+        target = [t for t in dir(module) if "Module" in t]
+        class_ = getattr(module, str(*target))
+        setattr(self, class_.__alias__, class_(self))
 
     @property
     def drone_id(self) -> str:
@@ -230,51 +202,6 @@ class DroneInterface(Node):
         """drone speed getter"""
         return self.twist.twist
 
-    def gps_callback(self, msg: NavSatFix) -> None:
-        """navdata (gps) callback"""
-        self.gps.fix = [msg.latitude, msg.longitude, msg.altitude]
-
-    @property
-    def gps_pose(self) -> List[float]:
-        """gps pose getter"""
-        return self.gps.fix
-
-    def set_home(self, gps_pose_: List[float]) -> None:
-        """Set home origin"""
-        if not self.set_origin_cli_.wait_for_service(timeout_sec=3):
-            self.get_logger().error("GPS service not available")
-            return
-
-        req = SetOrigin.Request()
-        req.origin.latitude = float(gps_pose_[0])
-        req.origin.longitude = float(gps_pose_[1])
-        req.origin.altitude = float(gps_pose_[2])
-        resp = self.set_origin_cli_.call(req)
-        if not resp.success:
-            self.get_logger().warn("Origin already set")
-
-    def __follow_path(self, path: Path, speed: float, yaw_mode: int, is_gps: bool = False) -> None:
-        path_data = SendFollowPath.FollowPathData(
-            path, speed, yaw_mode, is_gps)
-        SendFollowPath(self, path_data)
-
-    def takeoff(self, height: float = 1.0, speed: float = 0.5) -> None:
-        """Drone takeoff"""
-        if self.use_gps:
-            self.set_home(self.gps_pose)
-
-        SendTakeoff(self, float(height), float(speed))
-
-    def follow_path(self, path: Path, speed: float = 1.0,
-                    yaw_mode: int = TrajectoryWaypoints.KEEP_YAW) -> None:
-        """Drone follow path"""
-        self.__follow_path(path, speed, yaw_mode)
-
-    def follow_gps_path(self, wp_path: Path, speed: float = 1.0,
-                        yaw_mode: int = TrajectoryWaypoints.KEEP_YAW) -> None:
-        """Drone follow gps path"""
-        self.__follow_path(wp_path, speed, yaw_mode, is_gps=True)
-
     def arm(self) -> None:
         """Drone arming"""
         sleep(0.1)
@@ -288,47 +215,6 @@ class DroneInterface(Node):
         """Drone set offboard"""
         Offboard(self)
 
-    def land(self, speed: float = 0.5) -> None:
-        """Drone landing"""
-        SendLand(self, float(speed))
-
-    def __go_to(self, _x: float, _y: float, _z: float,
-                speed: float, ignore_yaw: bool, is_gps: bool) -> None:
-        if is_gps:
-            msg = GeoPose()
-            msg.position.latitude = (float)(_x)
-            msg.position.longitude = (float)(_y)
-            msg.position.altitude = (float)(_z)
-        else:
-            msg = Pose()
-            msg.position.x = (float)(_x)
-            msg.position.y = (float)(_y)
-            msg.position.z = (float)(_z)
-        SendGoToWaypoint(self, msg, speed, ignore_yaw)
-
-    def go_to(self, _x: float, _y: float, _z: float, speed: float, ignore_yaw: bool = True) -> None:
-        """Drone go to"""
-        self.__go_to(_x, _y, _z, speed, ignore_yaw, is_gps=False)
-
-    # TODO: python overloads?
-    def go_to_point(self, point: List[float],
-                    speed: float, ignore_yaw: bool = True) -> None:
-        """Drone go to"""
-        self.__go_to(point[0], point[1], point[2],
-                     speed, ignore_yaw, is_gps=False)
-
-    def go_to_gps(self, lat: float, lon: float, alt: float,
-                  speed: float, ignore_yaw: bool = True) -> None:
-        """Drone go to gps pose"""
-        self.__go_to(lat, lon, alt, speed, ignore_yaw, is_gps=True)
-
-    # TODO: python overloads?
-    def go_to_gps_point(self, waypoint: List[float],
-                        speed: float, ignore_yaw: bool = True) -> None:
-        """Drone go to gps point"""
-        self.__go_to(waypoint[0], waypoint[1], waypoint[2],
-                     speed, ignore_yaw, is_gps=True)
-
     # TODO: replace with executor callbacks
     def auto_spin(self) -> None:
         """Drone intern spin"""
@@ -341,12 +227,6 @@ class DroneInterface(Node):
         self.keep_running = False
         self.destroy_subscription(self.info_sub)
         self.destroy_subscription(self.pose_sub)
-        self.destroy_subscription(self.gps_sub)
-
-        if self.use_gps:
-            self.destroy_client(self.set_origin_cli_)
-        self.destroy_client(self.global_to_local_cli_)
-        self.destroy_client(self.local_to_global_cli_)
 
         self.spin_thread.join()
         print("Clean exit")
