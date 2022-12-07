@@ -49,7 +49,7 @@ from rclpy.parameter import Parameter
 
 from sensor_msgs.msg import NavSatFix
 from std_srvs.srv import SetBool
-from as2_msgs.msg import TrajectoryWaypoints, PlatformInfo, AlertEvent
+from as2_msgs.msg import TrajectoryWaypoints, PlatformInfo, AlertEvent, YawMode
 from as2_msgs.srv import SetOrigin, GeopathToPath, PathToGeopath
 from geometry_msgs.msg import Pose, PoseStamped, TwistStamped
 from geographic_msgs.msg import GeoPose
@@ -74,14 +74,6 @@ from python_interface.service_clients.arming import Arm, Disarm
 from python_interface.service_clients.offboard import Offboard
 
 from python_interface.tools.utils import euler_from_quaternion
-
-
-STATE = ["DISARMED", "LANDED", "TAKING_OFF", "FLYING", "LANDING", "EMERGENCY"]
-YAW_MODE = ["NONE", "YAW_ANGLE", "YAW_SPEED"]
-CONTROL_MODE = ["UNSET", "HOVER", "POSITION", "SPEED", "SPEED_IN_A_PLANE",
-                "ATTITUDE", "ACRO", "TRAJECTORY", "ACEL"]
-REFERENCE_FRAME = ["UNDEFINED_FRAME", "LOCAL_ENU_FRAME",
-                   "BODY_FLU_FRAME", "GLOBAL_ENU_FRAME"]
 
 
 class DroneInterface(Node):
@@ -115,8 +107,9 @@ class DroneInterface(Node):
             self.get_logger().set_level(rclpy.logging.LoggingSeverity.DEBUG)
 
         self.__info = PlatformInfoData()
-        self.pose = PoseData()
-        self.twist = TwistData()
+        self.__pose = PoseData()
+        self.__twist = TwistData()
+        self.__gps = GpsData()
 
         self.namespace = drone_id
         self.get_logger().info(f"Starting {self.drone_id}")
@@ -157,7 +150,6 @@ class DroneInterface(Node):
             self.trajectory_gen_cli = None
 
         self.use_gps = use_gps
-        self.gps = GpsData()
         if self.use_gps:
             self.set_origin_cli_ = self.create_client(
                 SetOrigin, f"{translator_namespace}/set_origin")
@@ -236,7 +228,7 @@ class DroneInterface(Node):
 
     def __info_callback(self, msg: PlatformInfo) -> None:
         """platform info callback"""
-        self.__info.data = [int(msg.connected), int(msg.armed), int(msg.offboard), msg.status.state,
+        self.__info.data = [msg.connected, msg.armed, msg.offboard, msg.status.state,
                             msg.current_control_mode.yaw_mode, msg.current_control_mode.control_mode,
                             msg.current_control_mode.reference_frame]
 
@@ -245,11 +237,11 @@ class DroneInterface(Node):
 
     def __pose_callback(self, pose_msg: PoseStamped) -> None:
         """pose stamped callback"""
-        self.pose.position = [pose_msg.pose.position.x,
-                              pose_msg.pose.position.y,
-                              pose_msg.pose.position.z]
+        self.__pose.position = [pose_msg.pose.position.x,
+                                pose_msg.pose.position.y,
+                                pose_msg.pose.position.z]
 
-        self.pose.orientation = [
+        self.__pose.orientation = [
             *euler_from_quaternion(
                 pose_msg.pose.orientation.x,
                 pose_msg.pose.orientation.y,
@@ -258,13 +250,13 @@ class DroneInterface(Node):
 
     def __twist_callback(self, twist_msg: TwistStamped) -> None:
         """twist stamped callback"""
-        self.twist.twist = [twist_msg.twist.linear.x,
-                            twist_msg.twist.linear.y,
-                            twist_msg.twist.linear.z]
+        self.__twist.twist = [twist_msg.twist.linear.x,
+                              twist_msg.twist.linear.y,
+                              twist_msg.twist.linear.z]
 
     def __gps_callback(self, msg: NavSatFix) -> None:
         """navdata (gps) callback"""
-        self.gps.fix = [msg.latitude, msg.longitude, msg.altitude]
+        self.__gps.fix = [msg.latitude, msg.longitude, msg.altitude]
 
     def __set_home(self, gps_pose_: List[float]) -> None:
         """Set home origin"""
@@ -315,7 +307,7 @@ class DroneInterface(Node):
         SendLand(self, float(speed))
 
     def __go_to(self, _x: float, _y: float, _z: float,
-                speed: float, ignore_yaw: bool, is_gps: bool) -> None:
+                speed: float, yaw_mode: int, yaw_angle: float, is_gps: bool) -> None:
         if is_gps:
             msg = GeoPose()
             msg.position.latitude = (float)(_x)
@@ -326,56 +318,132 @@ class DroneInterface(Node):
             msg.position.x = (float)(_x)
             msg.position.y = (float)(_y)
             msg.position.z = (float)(_z)
-        SendGoToWaypoint(self, msg, speed, ignore_yaw)
 
-    # TODO: ignore_yaw
-    def go_to(self, _x: float, _y: float, _z: float, speed: float, ignore_yaw: bool = True) -> None:
+        SendGoToWaypoint(self, msg, speed, yaw_mode, yaw_angle)
+
+    def go_to(self, _x: float, _y: float, _z: float, speed: float) -> None:
         """Go to point (m) with speed (m/s).
 
         :type _x: float
         :type _y: float
         :type _z: float
         :type speed: float
-        :type ignore_yaw: bool, optional
         """
-        self.__go_to(_x, _y, _z, speed, ignore_yaw, is_gps=False)
+        self.__go_to(_x, _y, _z, speed, yaw_mode=YawMode.KEEP_YAW,
+                     yaw_angle=None, is_gps=False)
 
-    # TODO: ignore_yaw
-    def go_to_point(self, point: List[float],
-                    speed: float, ignore_yaw: bool = True) -> None:
+    def go_to_with_yaw(self, _x: float, _y: float, _z: float, speed: float, angle: float) -> None:
+        """Go to position with speed and yaw_angle
+
+        :type _x: float
+        :type _y: float
+        :type _z: float
+        :type speed: float
+        :type yaw_angle: float
+        """
+        self.__go_to(_x, _y, _z, speed, yaw_mode=YawMode.FIXED_YAW,
+                     yaw_angle=angle, is_gps=False)
+
+    def go_to_path_facing(self, _x: float, _y: float, _z: float, speed: float) -> None:
+        """Go to position facing goal with speed
+
+        :type _x: float
+        :type _y: float
+        :type _z: float
+        :type speed: float
+        """
+        self.__go_to(_x, _y, _z, speed, yaw_mode=YawMode.PATH_FACING,
+                     yaw_angle=None, is_gps=False)
+
+    def go_to_point(self, point: List[float], speed: float) -> None:
         """Go to point (m) with speed (m/s).
+
+        :type point: List[float]
+        :type speed: float
+        """
+        self.__go_to(point[0], point[1], point[2],
+                     speed, yaw_mode=YawMode.KEEP_YAW, yaw_angle=None, is_gps=False)
+
+    def go_to_point_with_yaw(self, point: List[float], speed: float, angle: float) -> None:
+        """Go to point with speed and yaw_angle
 
         :type point: List[float]
         :type speed: float
         :type ignore_yaw: bool, optional
         """
         self.__go_to(point[0], point[1], point[2],
-                     speed, ignore_yaw, is_gps=False)
+                     speed, yaw_mode=YawMode.FIXED_YAW, yaw_angle=angle, is_gps=False)
 
-    # TODO: ignore_yaw
-    def go_to_gps(self, lat: float, lon: float, alt: float,
-                  speed: float, ignore_yaw: bool = True) -> None:
+    def go_to_point_path_facing(self, point: List[float], speed: float) -> None:
+        """Go to point facing goal with speed
+
+        :type point: List[float]
+        :type speed: float
+        """
+        self.__go_to(point[0], point[1], point[2],
+                     speed, yaw_mode=YawMode.PATH_FACING, yaw_angle=None, is_gps=False)
+
+    def go_to_gps(self, lat: float, lon: float, alt: float, speed: float) -> None:
         """Go to GPS point (deg, m) with speed (m/s).
 
         :type lat: float
         :type lon: float
         :type alt: float
         :type speed: float
-        :type ignore_yaw: bool, optional
         """
-        self.__go_to(lat, lon, alt, speed, ignore_yaw, is_gps=True)
+        self.__go_to(lat, lon, alt, speed, yaw_mode=YawMode.KEEP_YAW,
+                     yaw_angle=None, is_gps=True)
 
-    # TODO: ignore_yaw
-    def go_to_gps_point(self, waypoint: List[float],
-                        speed: float, ignore_yaw: bool = True) -> None:
+    def go_to_gps_with_yaw(self, lat: float, lon: float, alt: float, speed: float, angle: float) -> None:
+        """Go to gps position with speed and angle
+
+        :type lat: float
+        :type lon: float
+        :type alt: float
+        :type speed: float
+        :type angle: float
+        """
+        self.__go_to(lat, lon, alt, speed, yaw_mode=YawMode.FIXED_YAW,
+                     yaw_angle=angle, is_gps=True)
+
+    def go_to_gps_path_facing(self, lat: float, lon: float, alt: float, speed: float) -> None:
+        """Go to gps position with speed facing the goal
+
+        :type lat: float
+        :type lon: float
+        :type alt: float
+        :type speed: float
+        """
+        self.__go_to(lat, lon, alt, speed, yaw_mode=YawMode.PATH_FACING,
+                     yaw_angle=None, is_gps=True)
+
+    def go_to_gps_point(self, waypoint: List[float], speed: float) -> None:
         """Go to GPS point (deg, m) with speed (m/s).
 
         :type waypoint: List[float]
         :type speed: float
-        :type ignore_yaw: bool, optional
         """
         self.__go_to(waypoint[0], waypoint[1], waypoint[2],
-                     speed, ignore_yaw, is_gps=True)
+                     speed, yaw_mode=YawMode.KEEP_YAW, yaw_angle=None, is_gps=True)
+
+    def go_to_gps_point_with_yaw(self, waypoint: List[float], speed: float, angle: float) -> None:
+        """Go to gps point with speed and yaw angle
+
+        :type waypoint: List[float]
+        :type speed: float
+        :type angle: float
+        """
+        self.__go_to(waypoint[0], waypoint[1], waypoint[2],
+                     speed, yaw_mode=YawMode.FIXED_YAW, yaw_angle=angle, is_gps=True)
+
+    def go_to_gps_point_path_facing(self, waypoint: List[float], speed: float) -> None:
+        """Go to gps point with speed facing the goal
+
+        :type waypoint: List[float]
+        :type speed: float
+        """
+        self.__go_to(waypoint[0], waypoint[1], waypoint[2],
+                     speed, yaw_mode=YawMode.PATH_FACING, yaw_angle=None, is_gps=True)
 
     def __follow_path(self, path: Path, speed: float, yaw_mode: int, is_gps: bool = False) -> None:
         path_data = SendFollowPath.FollowPathData(
@@ -403,15 +471,6 @@ class DroneInterface(Node):
         :type yaw_mode: int, optional
         """
         self.__follow_path(wp_path, speed, yaw_mode, is_gps=True)
-
-    def emergency_stop(self):
-        """Kill switch. BE CAREFUL, motors will stop!
-        """
-        msg = Bool()
-        msg.data = True
-        while True:
-            self.emergency_stop_pub.publish(msg)
-            sleep(0.01)
 
     def hover(self) -> None:
         """Stop and hover current position.
@@ -447,3 +506,31 @@ class DroneInterface(Node):
 
         self.spin_thread.join()
         print("Clean exit")
+
+    def __send_emergency(self, alert: int) -> None:
+        msg = AlertEvent()
+        msg.alert = alert
+        while True and rclpy.ok():
+            self.alert_pub.publish(msg)
+            sleep(0.01)
+
+    def send_emergency_land(self) -> None:
+        """Emergency landing"""
+        self.get_logger().info("Starting emergency landing")
+        self.__send_emergency(AlertEvent.FORCE_LAND)
+
+    def send_emergency_hover(self) -> None:
+        """Set controller to hover mode. You will have to take the control manually"""
+        self.__send_emergency(AlertEvent.FORCE_HOVER)
+
+    def send_emergency_land_to_aircraft(self) -> None:
+        """Call platform emergency land"""
+        self.__send_emergency(AlertEvent.EMERGENCY_LAND)
+
+    def send_emergency_hover_to_aircraft(self) -> None:
+        """Call platform hover. BE CAREFUL, you will have to take it control manually!"""
+        self.__send_emergency(AlertEvent.EMERGENCY_HOVER)
+
+    def send_emergency_killswitch_to_aircraft(self) -> None:
+        """Call platform stop. BE CAREFUL, motors will stop!"""
+        self.__send_emergency(AlertEvent.KILL_SWITCH)
