@@ -38,7 +38,7 @@ class GpsModule:
         self.gps.fix = [msg.latitude, msg.longitude, msg.altitude]
 
     @property
-    def gps_pose(self) -> List[float]:
+    def pose(self) -> List[float]:
         """gps pose getter"""
         return self.gps.fix
 

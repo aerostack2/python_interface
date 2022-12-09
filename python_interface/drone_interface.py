@@ -78,8 +78,6 @@ class DroneInterface(Node):
         :type drone_id: str, optional
         :param verbose: output mode, defaults to False
         :type verbose: bool, optional
-        :param use_gps: use gps sensor, defaults to False
-        :type use_gps: bool, optional
         :param use_sim_time: use simulation time, defaults to False
         :type use_sim_time: bool, optional
         """

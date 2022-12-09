@@ -1,4 +1,5 @@
-"""Takeoff action handler"""
+"""Python interface to easily command drones with AeroStack2.
+"""
 
 # Copyright (c) 2022 Universidad Politécnica de Madrid
 # All Rights Reserved
@@ -30,35 +31,37 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 # EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-
 __authors__ = "Miguel Fernández Cortizas, Pedro Arias Pérez, David Pérez Saura, Rafael Pérez Seguí"
 __copyright__ = "Copyright (c) 2022 Universidad Politécnica de Madrid"
 __license__ = "BSD-3-Clause"
 __version__ = "0.1.0"
 
-import typing
-from rclpy.action import ActionClient
-from as2_msgs.action import TakeOff
-
-from ..behaviour_actions.action_handler import ActionHandler
-
-if typing.TYPE_CHECKING:
-    from ..drone_interface import DroneInterface
+from python_interface.drone_interface import DroneInterface
+from python_interface.modules.takeoff_module import TakeoffModule
+from python_interface.modules.goto_module import GotoModule
 
 
-class SendTakeoff(ActionHandler):
-    """Takeoff action"""
+class MyDroneInterface(DroneInterface):
+    """Drone interface node"""
 
-    def __init__(self, drone: 'DroneInterface', height: float, speed: float, wait_result: bool = True) -> None:
-        self._action_client = ActionClient(drone, TakeOff, 'TakeOffBehaviour')
+    def __init__(self, drone_id: str = "drone0", verbose: bool = False,
+                 use_sim_time: bool = False) -> None:
+        """Constructor method
 
-        goal_msg = TakeOff.Goal()
-        goal_msg.takeoff_height = height
-        goal_msg.takeoff_speed = speed
+        :param drone_id: drone namespace, defaults to "drone0"
+        :type drone_id: str, optional
+        :param verbose: output mode, defaults to False
+        :type verbose: bool, optional
+        :param use_sim_time: use simulation time, defaults to False
+        :type use_sim_time: bool, optional
+        """
+        super().__init__(drone_id=drone_id, verbose=verbose, use_sim_time=use_sim_time)
 
-        try:
-            super().__init__(self._action_client, goal_msg, drone.get_logger(), wait_result)
-        except self.ActionNotAvailable as err:
-            drone.get_logger().error(str(err))
-        except (self.GoalRejected, self.GoalFailed) as err:
-            drone.get_logger().warn(str(err))
+        module_takeoff = 'python_interface.modules.takeoff_module'
+        module_land = 'python_interface.modules.land_module'
+        # self.load_module(module_takeoff)
+        self.load_module(module_land)
+
+        self.takeoff = TakeoffModule()
+        # setattr(self, "takeoff", TakeoffModule())
+        self.goto = GotoModule(drone=self)

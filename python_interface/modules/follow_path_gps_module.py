@@ -3,8 +3,8 @@ from nav_msgs.msg import Path
 from python_interface.behaviour_actions.followpath_behaviour import SendFollowPath
 
 
-class FollowPathModule:
-    __alias__ = "follow_path"
+class FollowPathGpsModule:
+    __alias__ = "follow_path_gps"
 
     def __init__(self, drone) -> None:
         self.__drone = drone
@@ -13,19 +13,21 @@ class FollowPathModule:
         self.__current_fp = None
 
     def __follow_path(self, path: Path, speed: float, yaw_mode: int, wait_result: bool = True) -> None:
-        path_data = SendFollowPath.FollowPathData(path, speed, yaw_mode, is_gps=False)
+        path_data = SendFollowPath.FollowPathData(path, speed, yaw_mode, is_gps=True)
         self.__current_fp = SendFollowPath(self, path_data, wait_result)
 
-    def __call__(self, path: Path, speed: float,
-                 yaw_mode: int = TrajectoryWaypoints.KEEP_YAW, wait: bool = True) -> None:
-        """Follow path with speed (m/s) and yaw_mode.
+    def __call__(self, wp_path: Path, speed: float,
+                        yaw_mode: int = TrajectoryWaypoints.KEEP_YAW, wait: bool = True) -> None:
+        """Follow GPS path with speed (m/s) and yaw_mode.
 
-        :type path: Path
+        :type wp_path: Path
         :type speed: float
         :param yaw_mode: yaw_mode, defaults to TrajectoryWaypoints.KEEP_YAW
         :type yaw_mode: int, optional
+        :param wait: blocking call to behaviour, default True
+        :type wait: bool, optional
         """
-        self.__follow_path(path, speed, yaw_mode, wait)
+        self.__follow_path(wp_path, speed, yaw_mode, wait_result=wait)
 
     # TODO
     def __del__(self):
@@ -44,9 +46,8 @@ class FollowPathModule:
         if self.__current_fp:
             self.__current_fp.stop()
 
-    def modify(self, path: Path, speed: float,
-               yaw_mode: int = TrajectoryWaypoints.KEEP_YAW):
-        # path_data = SendFollowPath.FollowPathData(path, speed, yaw_mode, is_gps=False)
+    def modify(self, wp_path: Path, speed: float, yaw_mode: int = TrajectoryWaypoints.KEEP_YAW):
+        # path_data = SendFollowPath.FollowPathData(wp_path, speed, yaw_mode, is_gps=True)
         # # path_data to goal_msg
         # self.__current_fp.modify(goal_msg=msg)
         raise NotImplementedError
