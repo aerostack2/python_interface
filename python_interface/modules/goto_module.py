@@ -1,23 +1,32 @@
-from typing import List
+"""
+goto_module.py
+"""
+
+from typing import List, TYPE_CHECKING
 
 from as2_msgs.msg import YawMode
 from geometry_msgs.msg import Pose
-from geographic_msgs.msg import GeoPose
 
 from python_interface.behaviour_actions.gotowayp_behaviour import SendGoToWaypoint
 
+if TYPE_CHECKING:
+    from ..drone_interface import DroneInterface
+
 
 class GotoModule:
+    """Goto Module
+    """
     __alias__ = "goto"
 
-    def __init__(self, drone) -> None:
+    def __init__(self, drone: 'DroneInterface') -> None:
         self.__drone = drone
         self.__drone.modules[self.__alias__] = self
 
         self.__current_goto = None
 
     def __call__(self, _x: float, _y: float, _z: float, speed: float,
-                 yaw_mode: int = YawMode.FIXED_YAW, yaw_angle: float = None, wait: bool = True) -> None:
+                 yaw_mode: int = YawMode.FIXED_YAW,
+                 yaw_angle: float = None, wait: bool = True) -> None:
         """Go to point (m) with speed (m/s).
 
         :type _x: float
@@ -36,7 +45,8 @@ class GotoModule:
         msg.position.x = (float)(_x)
         msg.position.y = (float)(_y)
         msg.position.z = (float)(_z)
-        self.__current_goto = SendGoToWaypoint(self, msg, speed, yaw_mode, yaw_angle, wait)
+        self.__current_goto = SendGoToWaypoint(
+            self, msg, speed, yaw_mode, yaw_angle, wait)
 
     # Method simplifications
     def go_to(self, _x: float, _y: float, _z: float, speed: float) -> None:
@@ -47,7 +57,8 @@ class GotoModule:
         :type _z: float
         :type speed: float
         """
-        self.__go_to(_x, _y, _z, speed, yaw_mode=YawMode.KEEP_YAW, yaw_angle=None)
+        self.__go_to(_x, _y, _z, speed,
+                     yaw_mode=YawMode.KEEP_YAW, yaw_angle=None)
 
     def go_to_with_yaw(self, _x: float, _y: float, _z: float, speed: float, angle: float) -> None:
         """Go to position with speed and yaw_angle
@@ -58,7 +69,8 @@ class GotoModule:
         :type speed: float
         :type yaw_angle: float
         """
-        self.__go_to(_x, _y, _z, speed, yaw_mode=YawMode.FIXED_YAW, yaw_angle=angle)
+        self.__go_to(_x, _y, _z, speed,
+                     yaw_mode=YawMode.FIXED_YAW, yaw_angle=angle)
 
     def go_to_path_facing(self, _x: float, _y: float, _z: float, speed: float) -> None:
         """Go to position facing goal with speed
@@ -68,7 +80,8 @@ class GotoModule:
         :type _z: float
         :type speed: float
         """
-        self.__go_to(_x, _y, _z, speed, yaw_mode=YawMode.PATH_FACING, yaw_angle=None)
+        self.__go_to(_x, _y, _z, speed,
+                     yaw_mode=YawMode.PATH_FACING, yaw_angle=None)
 
     def go_to_point(self, point: List[float], speed: float) -> None:
         """Go to point (m) with speed (m/s).
@@ -115,7 +128,7 @@ class GotoModule:
             self.__current_goto.stop()
 
     def modify(self, _x: float, _y: float, _z: float,
-                speed: float, yaw_mode: int, yaw_angle: float) -> None:
+               speed: float, yaw_mode: int, yaw_angle: float) -> None:
         # msg = Pose()
         # msg.position.x = (float)(_x)
         # msg.position.y = (float)(_y)
