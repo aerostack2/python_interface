@@ -1,4 +1,4 @@
-"""Python interface to easily command drones with AeroStack2.
+"""Drone interface GPS to easily command drones with AeroStack2.
 """
 
 # Copyright (c) 2022 Universidad Politécnica de Madrid
@@ -36,12 +36,14 @@ __copyright__ = "Copyright (c) 2022 Universidad Politécnica de Madrid"
 __license__ = "BSD-3-Clause"
 __version__ = "0.1.0"
 
-from python_interface.drone_interface import DroneInterface
+from python_interface.drone_interface_base import DroneInterfaceBase
 from python_interface.modules.takeoff_module import TakeoffModule
-from python_interface.modules.goto_module import GotoModule
+from python_interface.modules.goto_gps_module import GotoGpsModule
+from python_interface.modules.follow_path_gps_module import FollowPathGpsModule
+from python_interface.modules.land_module import LandModule
 
 
-class MyDroneInterface(DroneInterface):
+class DroneInterfaceGPS(DroneInterfaceBase):
     """Drone interface node"""
 
     def __init__(self, drone_id: str = "drone0", verbose: bool = False,
@@ -57,11 +59,7 @@ class MyDroneInterface(DroneInterface):
         """
         super().__init__(drone_id=drone_id, verbose=verbose, use_sim_time=use_sim_time)
 
-        module_takeoff = 'python_interface.modules.takeoff_module'
-        module_land = 'python_interface.modules.land_module'
-        # self.load_module(module_takeoff)
-        self.load_module(module_land)
-
-        self.takeoff = TakeoffModule()
-        # setattr(self, "takeoff", TakeoffModule())
-        self.goto = GotoModule(drone=self)
+        self.takeoff = TakeoffModule(drone=self)
+        self.goto = GotoGpsModule(drone=self)
+        self.follow_path = FollowPathGpsModule(drone=self)
+        self.land = LandModule(drone=self)

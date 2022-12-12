@@ -43,13 +43,13 @@ from as2_msgs.action import TakeOff
 from ..behaviour_actions.action_handler import ActionHandler
 
 if typing.TYPE_CHECKING:
-    from ..drone_interface import DroneInterface
+    from ..drone_interface_base import DroneInterfaceBase
 
 
 class SendTakeoff(ActionHandler):
     """Takeoff action"""
 
-    def __init__(self, drone: 'DroneInterface', height: float, speed: float, wait_result: bool = True) -> None:
+    def __init__(self, drone: 'DroneInterfaceBase', height: float, speed: float, wait_result: bool = True) -> None:
         self._action_client = ActionClient(drone, TakeOff, 'TakeOffBehaviour')
 
         goal_msg = TakeOff.Goal()

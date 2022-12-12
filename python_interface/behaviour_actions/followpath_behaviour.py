@@ -52,7 +52,7 @@ from ..behaviour_actions.action_handler import ActionHandler
 from ..tools.utils import path_to_list
 
 if typing.TYPE_CHECKING:
-    from ..drone_interface import DroneInterface
+    from ..drone_interface_base import DroneInterfaceBase
 
 
 class SendFollowPath(ActionHandler):
@@ -66,7 +66,7 @@ class SendFollowPath(ActionHandler):
         yaw_mode: TrajectoryWaypoints.yaw_mode = TrajectoryWaypoints.KEEP_YAW
         is_gps: bool = False
 
-    def __init__(self, drone: 'DroneInterface',
+    def __init__(self, drone: 'DroneInterfaceBase',
                  path_data: Union[list, tuple, Path, GeoPath, TrajectoryWaypoints], wait_result: bool = True) -> None:
         self._action_client = ActionClient(
             drone, FollowPath, 'FollowPathBehaviour')
