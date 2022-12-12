@@ -124,7 +124,7 @@ class SendFollowPath(ActionHandler):
 
             path_data.path = geopath
             path_data.is_gps = False
-            return self.get_traj(path_data)
+            return self.__get_traj(path_data)
 
         msg = TrajectoryWaypoints()
         msg.header.stamp = self._drone.get_clock().now().to_msg()
