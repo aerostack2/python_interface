@@ -1,23 +1,36 @@
+"""
+follow_path_gps_module.py
+"""
+
+import typing
+
 from as2_msgs.msg import TrajectoryWaypoints
 from nav_msgs.msg import Path
 from python_interface.behaviour_actions.followpath_behaviour import SendFollowPath
 
+if typing.TYPE_CHECKING:
+    from ..drone_interface import DroneInterface
+
 
 class FollowPathGpsModule:
+    """Follow Path GPS Module
+    """
     __alias__ = "follow_path_gps"
 
-    def __init__(self, drone) -> None:
+    def __init__(self, drone: 'DroneInterface') -> None:
         self.__drone = drone
         self.__drone.modules[self.__alias__] = self
 
         self.__current_fp = None
 
-    def __follow_path(self, path: Path, speed: float, yaw_mode: int, wait_result: bool = True) -> None:
-        path_data = SendFollowPath.FollowPathData(path, speed, yaw_mode, is_gps=True)
+    def __follow_path(self, path: Path, speed: float, yaw_mode: int,
+                      wait_result: bool = True) -> None:
+        path_data = SendFollowPath.FollowPathData(
+            path, speed, yaw_mode, is_gps=True)
         self.__current_fp = SendFollowPath(self, path_data, wait_result)
 
     def __call__(self, wp_path: Path, speed: float,
-                        yaw_mode: int = TrajectoryWaypoints.KEEP_YAW, wait: bool = True) -> None:
+                 yaw_mode: int = TrajectoryWaypoints.KEEP_YAW, wait: bool = True) -> None:
         """Follow GPS path with speed (m/s) and yaw_mode.
 
         :type wp_path: Path
@@ -33,20 +46,21 @@ class FollowPathGpsModule:
     def __del__(self):
         del self.__drone.modules[self.__alias__]
 
-    def pause(self):
+    def pause(self) -> None:
         # self.__current_fp.pause()
         # super().pause()  # Best way to do it. Take advantage of inheritance or multi-inheritance
         raise NotImplementedError
 
-    def resume(self):
+    def resume(self) -> None:
         # self.__current_fp.resume()
         raise NotImplementedError
 
-    def stop(self):
+    def stop(self) -> None:
         if self.__current_fp:
             self.__current_fp.stop()
 
-    def modify(self, wp_path: Path, speed: float, yaw_mode: int = TrajectoryWaypoints.KEEP_YAW):
+    def modify(self, wp_path: Path, speed: float,
+               yaw_mode: int = TrajectoryWaypoints.KEEP_YAW) -> None:
         # path_data = SendFollowPath.FollowPathData(wp_path, speed, yaw_mode, is_gps=True)
         # # path_data to goal_msg
         # self.__current_fp.modify(goal_msg=msg)

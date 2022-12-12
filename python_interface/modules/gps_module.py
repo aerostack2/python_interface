@@ -1,10 +1,12 @@
 """
 gps_module.py
 """
+
 from typing import List
 
 from rclpy.qos import qos_profile_sensor_data
-from as2_msgs.srv import SetOrigin, GeopathToPath, PathToGeopath
+from as2_msgs.srv import SetOrigin
+# from as2_msgs.srv import GeopathToPath, PathToGeopath
 from sensor_msgs.msg import NavSatFix
 
 from python_interface.shared_data.gps_data import GpsData

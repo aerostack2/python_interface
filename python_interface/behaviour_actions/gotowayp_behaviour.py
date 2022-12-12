@@ -66,7 +66,7 @@ class SendGoToWaypoint(ActionHandler):
 
         goal_msg = GoToWaypoint.Goal()
         pose_stamped = self.__get_pose(pose)
-        goal_msg.target_pose.header.stamp = self._drone.get_clock().now()
+        goal_msg.target_pose.header.stamp = self._drone.get_clock().now().to_msg()
         goal_msg.target_pose.header.frame_id = "earth"  # TODO
         goal_msg.target_pose.point.x = pose_stamped.position.x
         goal_msg.target_pose.point.y = pose_stamped.position.y

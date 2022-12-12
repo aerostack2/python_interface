@@ -1,12 +1,23 @@
+"""
+land_module.py
+"""
+
+import typing
+
 from as2_msgs.action import Land
 
 from python_interface.behaviour_actions.land_behaviour import SendLand
 
+if typing.TYPE_CHECKING:
+    from ..drone_interface import DroneInterface
+
 
 class LandModule:
+    """Land Module
+    """
     __alias__ = "land"
 
-    def __init__(self, drone) -> None:
+    def __init__(self, drone: 'DroneInterface') -> None:
         self.__drone = drone
         self.__drone.modules[self.__alias__] = self
 
@@ -23,17 +34,17 @@ class LandModule:
     def __del__(self):
         del self.__drone.modules[self.__alias__]
 
-    def pause(self):
+    def pause(self) -> None:
         raise NotImplementedError
 
-    def resume(self):
+    def resume(self) -> None:
         raise NotImplementedError
 
-    def stop(self):
+    def stop(self) -> None:
         if self.__current_land:
             self.__current_land.stop()
 
-    def modify(self, speed):
+    def modify(self, speed) -> None:
         if self.__current_land:
             goal_msg = Land.Goal()
             goal_msg.land_speed = speed
