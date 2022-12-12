@@ -50,13 +50,13 @@ from geographic_msgs.msg import GeoPoseStamped, GeoPose
 from python_interface.behaviour_actions.action_handler import ActionHandler
 
 if typing.TYPE_CHECKING:
-    from ..drone_interface import DroneInterface
+    from ..drone_interface_base import DroneInterfaceBase
 
 
 class SendGoToWaypoint(ActionHandler):
     """Go to action"""
 
-    def __init__(self, drone: 'DroneInterface',
+    def __init__(self, drone: 'DroneInterfaceBase',
                  pose: Tuple[Pose, PoseStamped, GeoPose, GeoPoseStamped],
                  speed: float, yaw_mode: int, yaw_angle: float, wait_result: bool = True) -> None:
         self._action_client = ActionClient(

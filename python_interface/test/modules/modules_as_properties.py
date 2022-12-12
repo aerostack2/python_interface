@@ -1,7 +1,6 @@
 import rclpy
 
-from python_interface.drone_interface import DroneInterface
-from python_interface.test.modules.drone_interface_loaded import MyDroneInterface
+from python_interface.drone_interface_base import DroneInterfaceBase as DroneInterface
 
 module_takeoff = 'python_interface.modules.takeoff_module'
 module_land = 'python_interface.modules.land_module'
@@ -26,11 +25,3 @@ drone_interface.takeoff()
 drone_interface.land()
 
 print(drone_interface.modules)
-
-
-drone_interface_2 = MyDroneInterface("drone_sim_0", verbose=True)
-drone_interface_2.takeoff()
-drone_interface_2.goto.go_to_point_with_yaw()
-# drone_interface.shutdown()
-
-# print("Bye!")
