@@ -36,6 +36,7 @@ __copyright__ = "Copyright (c) 2022 Universidad Politécnica de Madrid"
 __license__ = "BSD-3-Clause"
 __version__ = "0.1.0"
 
+import importlib
 import threading
 from time import sleep
 from typing import List, Dict, Union
@@ -47,14 +48,8 @@ from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data, qos_profile_system_default
 from rclpy.parameter import Parameter
 
-from std_srvs.srv import SetBool
 from as2_msgs.msg import PlatformInfo, AlertEvent
 from geometry_msgs.msg import PoseStamped, TwistStamped
-
-from motion_reference_handlers.hover_motion import HoverMotion
-from motion_reference_handlers.position_motion import PositionMotion
-from motion_reference_handlers.speed_motion import SpeedMotion
-from motion_reference_handlers.speed_in_a_plane import SpeedInAPlaneMotion
 
 from python_interface.shared_data.platform_info_data import PlatformInfoData
 from python_interface.shared_data.pose_data import PoseData
@@ -109,17 +104,6 @@ class DroneInterface(Node):
         self.twist_sub = self.create_subscription(
             TwistStamped, 'self_localization/twist', self.__twist_callback, qos_profile_sensor_data)
 
-        self.trajectory_gen_cli = self.create_client(
-            SetBool, "traj_gen/run_node")
-        if not self.trajectory_gen_cli.wait_for_service(timeout_sec=3):
-            self.get_logger().warn("Trajectory generator service not found")
-            self.trajectory_gen_cli = None
-
-        self.hover_motion_handler = HoverMotion(self)
-        self.position_motion_handler = PositionMotion(self)
-        self.speed_motion_handler = SpeedMotion(self)
-        self.speed_in_a_plane_motion_handler = SpeedInAPlaneMotion(self)
-
         self.alert_pub = self.create_publisher(
             AlertEvent, "alert_event", qos_profile_system_default)
 
@@ -136,7 +120,6 @@ class DroneInterface(Node):
 
     def load_module(self, pkg: str) -> None:
         """load module on drone"""
-        import importlib
         module = importlib.import_module(pkg)
         target = [t for t in dir(module) if "Module" in t]
         class_ = getattr(module, str(*target))
@@ -235,19 +218,6 @@ class DroneInterface(Node):
         """
         Offboard(self)
 
-    def hover(self) -> None:
-        """Stop and hover current position.
-        """
-        if self.trajectory_gen_cli is not None:
-            self.get_logger().info("Calling trajectory generator")
-            req = SetBool.Request()
-            req.data = False
-            resp = self.trajectory_gen_cli.call(req)
-            if not resp.success:
-                self.get_logger().warn("Cannot stop trajectory generator")
-        self.hover_motion_handler.send_hover()
-        self.get_logger().info("Hover sent")
-
     # TODO: replace with executor callbacks
     def __auto_spin(self) -> None:
         """Drone inner spin"""
@@ -267,7 +237,7 @@ class DroneInterface(Node):
     def __send_emergency(self, alert: int) -> None:
         msg = AlertEvent()
         msg.alert = alert
-        while True and rclpy.ok():
+        while rclpy.ok():
             self.alert_pub.publish(msg)
             sleep(0.01)
 
