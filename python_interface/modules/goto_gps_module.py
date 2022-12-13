@@ -7,20 +7,21 @@ from typing import List, TYPE_CHECKING
 from as2_msgs.msg import YawMode
 from geographic_msgs.msg import GeoPose
 
+from python_interface.modules.module_base import ModuleBase
 from python_interface.behaviour_actions.gotowayp_behaviour import SendGoToWaypoint
 
 if TYPE_CHECKING:
     from ..drone_interface import DroneInterface
 
 
-class GotoGpsModule:
+class GotoGpsModule(ModuleBase):
     """Goto GPS Module
     """
     __alias__ = "goto_gps"
 
     def __init__(self, drone: 'DroneInterface') -> None:
+        super().__init__(drone, self.__alias__)
         self.__drone = drone
-        self.__drone.modules[self.__alias__] = self
 
         self.__current_goto = None
 
@@ -47,7 +48,7 @@ class GotoGpsModule:
         msg.position.altitude = (float)(alt)
 
         self.__current_goto = SendGoToWaypoint(
-            self, msg, speed, yaw_mode, yaw_angle, wait)
+            self.__drone, msg, speed, yaw_mode, yaw_angle, wait)
 
     # Method simplications
     def go_to_gps(self, lat: float, lon: float, alt: float, speed: float) -> None:
@@ -113,10 +114,6 @@ class GotoGpsModule:
         self.__go_to(waypoint[0], waypoint[1], waypoint[2],
                      speed, yaw_mode=YawMode.PATH_FACING, yaw_angle=None)
 
-    # TODO
-    def __del__(self):
-        del self.__drone.modules[self.__alias__]
-
     def pause(self):
         raise NotImplementedError
 
@@ -129,3 +126,8 @@ class GotoGpsModule:
 
     def modify(self, speed):
         raise NotImplementedError
+
+    def destroy(self):
+        """Destroy module, clean exit
+        """
+        self.__current_goto = None

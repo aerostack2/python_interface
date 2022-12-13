@@ -89,7 +89,6 @@ class DroneInterfaceBase(Node):
         self.__info = PlatformInfoData()
         self.__pose = PoseData()
         self.__twist = TwistData()
-        # self.__gps = GpsData()  ## TODO: review
 
         self.namespace = drone_id
         self.get_logger().info(f"Starting {self.drone_id}")
@@ -116,12 +115,16 @@ class DroneInterfaceBase(Node):
         self.get_logger().info(f'{self.drone_id} interface initialized')
 
     def __del__(self) -> None:
-        self.__shutdown()
+        self.shutdown()
 
     def load_module(self, pkg: str) -> None:
         """load module on drone"""
         module = importlib.import_module(pkg)
         target = [t for t in dir(module) if "Module" in t]
+        try:
+            target.remove('ModuleBase')
+        except ValueError:
+            pass  # Preventing matching with ModuleBase import
         class_ = getattr(module, str(*target))
         setattr(self, class_.__alias__, class_(self))
 
@@ -168,19 +171,12 @@ class DroneInterfaceBase(Node):
         """
         return self.__twist.twist
 
-    # TODO: review
-    # @property
-    # def gps_pose(self) -> List[float]:
-    #     """Get GPS position (lat, lon, alt) in deg and m.
-
-    #     :rtype: List[float]
-    #     """
-    #     return self.gps.fix
-
     def __info_callback(self, msg: PlatformInfo) -> None:
         """platform info callback"""
-        self.__info.data = [msg.connected, msg.armed, msg.offboard, msg.status.state,
-                            msg.current_control_mode.yaw_mode, msg.current_control_mode.control_mode,
+        self.__info.data = [msg.connected, msg.armed,
+                            msg.offboard, msg.status.state,
+                            msg.current_control_mode.yaw_mode,
+                            msg.current_control_mode.control_mode,
                             msg.current_control_mode.reference_frame]
 
     def __pose_callback(self, pose_msg: PoseStamped) -> None:
@@ -221,18 +217,23 @@ class DroneInterfaceBase(Node):
     # TODO: replace with executor callbacks
     def __auto_spin(self) -> None:
         """Drone inner spin"""
-        while rclpy.ok() and self.keep_running:
-            self.__executor.spin_once()
+        while self.keep_running and rclpy.ok():
+            self.__executor.spin_once(timeout_sec=0)
             sleep(0.05)
 
-    def __shutdown(self) -> None:
+    def shutdown(self) -> None:
         """Shutdown properly"""
         self.keep_running = False
         self.destroy_subscription(self.info_sub)
         self.destroy_subscription(self.pose_sub)
+        self.destroy_subscription(self.twist_sub)
+        self.destroy_publisher(self.alert_pub)
 
+        for module in self.modules.values():
+            module.destroy()
+
+        self.modules = {}
         self.spin_thread.join()
-        print("Clean exit")
 
     def __send_emergency(self, alert: int) -> None:
         msg = AlertEvent()
