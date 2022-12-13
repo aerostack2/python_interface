@@ -25,3 +25,9 @@ drone_interface.takeoff()
 drone_interface.land()
 
 print(drone_interface.modules)
+
+drone_interface.shutdown()
+
+print(drone_interface.modules)
+
+print("Bye")

@@ -6,20 +6,21 @@ import typing
 
 from as2_msgs.action import Land
 
+from python_interface.modules.module_base import ModuleBase
 from python_interface.behaviour_actions.land_behaviour import SendLand
 
 if typing.TYPE_CHECKING:
     from ..drone_interface import DroneInterface
 
 
-class LandModule:
+class LandModule(ModuleBase):
     """Land Module
     """
     __alias__ = "land"
 
     def __init__(self, drone: 'DroneInterface') -> None:
+        super().__init__(drone, self.__alias__)
         self.__drone = drone
-        self.__drone.modules[self.__alias__] = self
 
         self.__current_land = None
 
@@ -30,9 +31,10 @@ class LandModule:
         """
         self.__current_land = SendLand(self.__drone, float(speed))
 
-    # TODO
-    def __del__(self):
-        del self.__drone.modules[self.__alias__]
+    def destroy(self):
+        """Destroy module, clean exit
+        """
+        self.__current_land = None
 
     def pause(self) -> None:
         raise NotImplementedError

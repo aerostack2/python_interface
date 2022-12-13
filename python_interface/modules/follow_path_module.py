@@ -6,20 +6,22 @@ import typing
 
 from as2_msgs.msg import TrajectoryWaypoints
 from nav_msgs.msg import Path
+
+from python_interface.modules.module_base import ModuleBase
 from python_interface.behaviour_actions.followpath_behaviour import SendFollowPath
 
 if typing.TYPE_CHECKING:
     from ..drone_interface import DroneInterface
 
 
-class FollowPathModule:
+class FollowPathModule(ModuleBase):
     """Follow Path Module
     """
     __alias__ = "follow_path"
 
     def __init__(self, drone: 'DroneInterface') -> None:
+        super().__init__(drone, self.__alias__)
         self.__drone = drone
-        self.__drone.modules[self.__alias__] = self
 
         self.__current_fp = None
 
@@ -27,7 +29,8 @@ class FollowPathModule:
                       yaw_mode: int, wait_result: bool = True) -> None:
         path_data = SendFollowPath.FollowPathData(
             path, speed, yaw_mode, is_gps=False)
-        self.__current_fp = SendFollowPath(self, path_data, wait_result)
+        self.__current_fp = SendFollowPath(
+            self.__drone, path_data, wait_result)
 
     def __call__(self, path: Path, speed: float,
                  yaw_mode: int = TrajectoryWaypoints.KEEP_YAW, wait: bool = True) -> None:
@@ -39,10 +42,6 @@ class FollowPathModule:
         :type yaw_mode: int, optional
         """
         self.__follow_path(path, speed, yaw_mode, wait)
-
-    # TODO
-    def __del__(self):
-        del self.__drone.modules[self.__alias__]
 
     def pause(self) -> None:
         # self.__current_fp.pause()
@@ -63,3 +62,8 @@ class FollowPathModule:
         # # path_data to goal_msg
         # self.__current_fp.modify(goal_msg=msg)
         raise NotImplementedError
+
+    def destroy(self):
+        """Destroy module, clean exit
+        """
+        self.__current_fp = None
